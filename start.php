@@ -24,22 +24,26 @@ $bot->onUpdate(function (Context $ctx) {
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
     $message = $ctx->getMessage();
-    $entities = $message->getEntities();
     $name = $user->getFirstName() . " " . $user->getLastName();
     $sender_id = $user->getId();
     $chat_id = $chat->getId();
     $username = $user->getUsername();
     if ($username != null){
-        $name = $username;
+        $name = "@" . $username;
     }
-    foreach ($entities as $entity){
-        if ($entity->getType() == 'text_link'){
-            $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+    $entities = $message->getEntities();
+    var_dump($entities);
+    if (is_array($entities)){
+        foreach ($entities as $entity){
+            if ($entity->getType() == 'text_link'){
+                $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
-            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
-                'chat_id' => $chat_id,
-                'parse_mode' => 'HTML'
-            ]);
+                $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+                    'chat_id' => $chat_id,
+                    'parse_mode' => 'HTML'
+                ]);
+                return false;
+            }
         }
     }
 
