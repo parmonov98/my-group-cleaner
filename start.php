@@ -2,6 +2,8 @@
 
 use Zanzara\Zanzara;
 use Zanzara\Context;
+use function React\Async\await;
+
 require __DIR__ . '/vendor/autoload.php';
 
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
@@ -17,13 +19,23 @@ $bot->onCommand('start', function (Context $ctx) {
 $bot->onCommand('help', function (Context $ctx) {
     $ctx->sendMessage("Bot yaratuvchi: @dasturchi_xizmati ");
 });
+//$bot->onfil("photo", function (Context $ctx) {
+//    $update = $ctx->getUpdate();
+//    $message = $update->getMessage();
+//
+////    $ctx->sendPhoto(new InputFile(), [
+////        'chat_id' => '@parmonov98'
+////    ]);
+//});
 
 $bot->onUpdate(function (Context $ctx) {
 
+    $admins = [];
     $update = $ctx->getUpdate();
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
-    $message = $ctx->getMessage();
+    $message = $update->getMessage();
+    var_dump($message->getText());
     $name = $user->getFirstName() . " " . $user->getLastName();
     $sender_id = $user->getId();
     $chat_id = $chat->getId();
@@ -31,30 +43,59 @@ $bot->onUpdate(function (Context $ctx) {
     if ($username != null){
         $name = "@" . $username;
     }
-    $entities = $message->getEntities();
-    var_dump($entities);
-    if (is_array($entities)){
-        foreach ($entities as $entity){
-            if ($entity->getType() == 'text_link'){
-                $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+    if ($chat->getType() === 'supergroup'){
 
-                $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
-                    'chat_id' => $chat_id,
-                    'parse_mode' => 'HTML'
-                ]);
-                return false;
+        if (!$user->isBot()){
+            if ($message->getLeftChatMember() != null){
+                $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+            }
+            if ($message->getNewChatMembers() != null){
+                $ctx->deleteMessage($chat->getId(), $message->getMessageId());
             }
         }
+
+
+        $ctx->getChatAdministrators($chat_id)->then(
+            function ($admin_members) use(&$admins, $ctx, $update, $message, $user, $chat, $sender_id, $chat_id, $name){
+
+            var_dump($admins);
+            if (is_array($admin_members)){
+                foreach ($admin_members as $member){
+                    $admins[] = $member->getUser()->getId();
+                }
+            }
+            if (!in_array($sender_id, $admins)){
+                var_dump('not admin');
+                $photos = $message->getPhoto();
+                if (is_array($photos)){
+                    $ctx->deleteMessage($chat_id, $message->getMessageId());
+
+                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+                        'chat_id' => $chat_id,
+                        'parse_mode' => 'HTML'
+                    ]);
+                }
+                $entities = $message->getEntities();
+                if (is_array($entities)){
+                    foreach ($entities as $entity){
+                        if ($entity->getType() == 'text_link'){
+                            $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+
+                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+                                'chat_id' => $chat_id,
+                                'parse_mode' => 'HTML'
+                            ]);
+                            break;
+                        }
+                    }
+                }
+            }else{
+                echo "admin";
+            }
+        });
+
     }
 
-    if (!$user->isBot()){
-        if ($message->getLeftChatMember() != null){
-            $ctx->deleteMessage($chat->getId(), $message->getMessageId());
-        }
-        if ($message->getNewChatMembers() != null){
-            $ctx->deleteMessage($chat->getId(), $message->getMessageId());
-        }
-    }
 });
 
 $bot->fallback(function(Context $ctx) {

@@ -2,6 +2,7 @@
     "require": {
         "badfarm/zanzara": "^0.8.0",
         "vlucas/phpdotenv": "^5.4",
-        "monolog/monolog": "^2.7"
+        "monolog/monolog": "^2.7",
+        "react/async": "^3.0.0"
     }
 }
