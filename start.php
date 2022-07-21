@@ -70,7 +70,17 @@ $bot->onUpdate(function (Context $ctx) {
                 if (is_array($photos)){
                     $ctx->deleteMessage($chat_id, $message->getMessageId());
 
-                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, rasm tashlamang, iltimos!", [
+                        'chat_id' => $chat_id,
+                        'parse_mode' => 'HTML'
+                    ]);
+                }
+                $video = $message->getVideo();
+                var_dump($video);
+                if ($video != null){
+                    $ctx->deleteMessage($chat_id, $message->getMessageId());
+
+                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, video tashlamang, iltimos!", [
                         'chat_id' => $chat_id,
                         'parse_mode' => 'HTML'
                     ]);
