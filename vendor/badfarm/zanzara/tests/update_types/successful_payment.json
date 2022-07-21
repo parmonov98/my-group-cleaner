@@ -1,0 +1,32 @@
+{
+    "update_id": 52259572,
+    "message": {
+        "message_id": 23790,
+        "from": {
+            "id": 222222222,
+            "is_bot": false,
+            "first_name": "Michael",
+            "username": "mscott",
+            "language_code": "it"
+        },
+        "chat": {
+            "id": 222222222,
+            "first_name": "Michael",
+            "username": "mscott",
+            "type": "private"
+        },
+        "date": 1584986653,
+        "successful_payment": {
+            "currency": "EUR",
+            "total_amount": 1999,
+            "invoice_payload": "default",
+            "order_info": {
+                "name": "Michael Scott",
+                "phone_number": "000000000000",
+                "email": "michael.scott@gmail.com"
+            },
+            "telegram_payment_charge_id": "_",
+            "provider_payment_charge_id": "_"
+        }
+    }
+}

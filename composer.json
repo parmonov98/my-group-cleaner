@@ -1,0 +1,6 @@
+{
+    "require": {
+        "badfarm/zanzara": "^0.8.0",
+        "vlucas/phpdotenv": "^5.4"
+    }
+}

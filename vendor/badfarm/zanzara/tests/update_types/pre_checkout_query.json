@@ -1,0 +1,21 @@
+{
+    "update_id": 52259571,
+    "pre_checkout_query": {
+        "id": "666728700924156328",
+        "from": {
+            "id": 222222222,
+            "is_bot": false,
+            "first_name": "Michael",
+            "username": "mscott",
+            "language_code": "it"
+        },
+        "currency": "EUR",
+        "total_amount": 1999,
+        "invoice_payload": "default",
+        "order_info": {
+            "name": "Michael Scott",
+            "phone_number": "000000000000",
+            "email": "michael.scott@gmail.com"
+        }
+    }
+}
