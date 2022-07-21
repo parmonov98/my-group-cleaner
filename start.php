@@ -13,20 +13,12 @@ $dotenv->required('TG_BOT_TOKEN');
 $bot = new Zanzara($_ENV['TG_BOT_TOKEN'] ?? "5374769262:AAFD_F0341iMnNf9kPYHMGiEQd6HwLP9-58");
 
 $bot->onCommand('start', function (Context $ctx) {
-    $ctx->sendMessage("Bu bot guruhdagi join va remove xabarlarni larni tozalaydi. Guruhga qo'shing va o'sha guruh adminligini botga bering. O'qish va O'chira olish huquqi bo'lishi kerak.");
+    $ctx->sendMessage("Bu bot guruhdagi join va remove, linkli, videoli, rasmli xabarlarni larni tozalaydi. \nYuqoridagi cheklovlar guruh adminlariga ta'sir qilmaydi.\nGuruhga qo'shing va o'sha guruh adminligini botga bering. O'qish va O'chira olish huquqi bo'lishi kerak.");
 });
 
 $bot->onCommand('help', function (Context $ctx) {
     $ctx->sendMessage("Bot yaratuvchi: @dasturchi_xizmati ");
 });
-//$bot->onfil("photo", function (Context $ctx) {
-//    $update = $ctx->getUpdate();
-//    $message = $update->getMessage();
-//
-////    $ctx->sendPhoto(new InputFile(), [
-////        'chat_id' => '@parmonov98'
-////    ]);
-//});
 
 $bot->onUpdate(function (Context $ctx) {
 
@@ -76,7 +68,6 @@ $bot->onUpdate(function (Context $ctx) {
                     ]);
                 }
                 $video = $message->getVideo();
-                var_dump($video);
                 if ($video != null){
                     $ctx->deleteMessage($chat_id, $message->getMessageId());
 
