@@ -58,24 +58,24 @@ $bot->onUpdate(function (Context $ctx) {
             }
             if (!in_array($sender_id, $admins)){
                 var_dump('not admin');
-                $photos = $message->getPhoto();
-                if (is_array($photos)){
-                    $ctx->deleteMessage($chat_id, $message->getMessageId());
-
-                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, rasm tashlamang, iltimos!", [
-                        'chat_id' => $chat_id,
-                        'parse_mode' => 'HTML'
-                    ]);
-                }
-                $video = $message->getVideo();
-                if ($video != null){
-                    $ctx->deleteMessage($chat_id, $message->getMessageId());
-
-                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, video tashlamang, iltimos!", [
-                        'chat_id' => $chat_id,
-                        'parse_mode' => 'HTML'
-                    ]);
-                }
+//                $photos = $message->getPhoto();
+//                if (is_array($photos)){
+//                    $ctx->deleteMessage($chat_id, $message->getMessageId());
+//
+//                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, rasm tashlamang, iltimos!", [
+//                        'chat_id' => $chat_id,
+//                        'parse_mode' => 'HTML'
+//                    ]);
+//                }
+//                $video = $message->getVideo();
+//                if ($video != null){
+//                    $ctx->deleteMessage($chat_id, $message->getMessageId());
+//
+//                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, video tashlamang, iltimos!", [
+//                        'chat_id' => $chat_id,
+//                        'parse_mode' => 'HTML'
+//                    ]);
+//                }
                 $entities = $message->getEntities();
                 if (is_array($entities)){
                     foreach ($entities as $entity){
