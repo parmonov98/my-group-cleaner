@@ -85,10 +85,10 @@ $bot->onUpdate(function (Context $ctx) {
                         if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
                             $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
-                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
-                                'chat_id' => $chat_id,
-                                'parse_mode' => 'HTML'
-                            ]);
+//                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+//                                'chat_id' => $chat_id,
+//                                'parse_mode' => 'HTML'
+//                            ]);
                             break;
                         }
                     }
@@ -98,10 +98,10 @@ $bot->onUpdate(function (Context $ctx) {
                         if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
                             $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
-                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
-                                'chat_id' => $chat_id,
-                                'parse_mode' => 'HTML'
-                            ]);
+//                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+//                                'chat_id' => $chat_id,
+//                                'parse_mode' => 'HTML'
+//                            ]);
                             break;
                         }
                     }
