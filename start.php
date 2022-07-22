@@ -83,8 +83,11 @@ $bot->onUpdate(function (Context $ctx) {
 //                    ]);
 //                }
 
-                $entities = $message->getEntities();
+                if ($message->getForwardFrom()){
+                    $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+                }
 
+                $entities = $message->getEntities();
                 $caption_entities = $message->getCaptionEntities();
 
                 if (is_array($entities)){
