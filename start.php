@@ -13,7 +13,7 @@ $dotenv->required('TG_BOT_TOKEN');
 $bot = new Zanzara($_ENV['TG_BOT_TOKEN'] ?? "5374769262:AAFD_F0341iMnNf9kPYHMGiEQd6HwLP9-58");
 
 $bot->onCommand('start', function (Context $ctx) {
-    $ctx->sendMessage("Bu bot guruhdagi join va remove, linkli, videoli, rasmli xabarlarni larni tozalaydi. \nYuqoridagi cheklovlar guruh adminlariga ta'sir qilmaydi.\nGuruhga qo'shing va o'sha guruh adminligini botga bering. O'qish va O'chira olish huquqi bo'lishi kerak.");
+    $ctx->sendMessage("Bu bot guruhdagi join va remove, link`li xabarlarni larni tozalaydi. \nYuqoridagi cheklovlar guruh adminlariga ta'sir qilmaydi.\nGuruhga qo'shing va o'sha guruh adminligini botga bering. O'qish va O'chira olish huquqi bo'lishi kerak.");
 });
 
 $bot->onCommand('help', function (Context $ctx) {
@@ -22,8 +22,10 @@ $bot->onCommand('help', function (Context $ctx) {
 
 $bot->onUpdate(function (Context $ctx) {
 
+
     $admins = [];
     $update = $ctx->getUpdate();
+    file_put_contents('update.json', $update);
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
     $message = $update->getMessage();
@@ -52,9 +54,12 @@ $bot->onUpdate(function (Context $ctx) {
             var_dump($admins);
             if (is_array($admin_members)){
                 foreach ($admin_members as $member){
-                    $admins[] = $member->getUser()->getId();
+                    if (!$member->getUser()->isBot()){
+                        $admins[] = $member->getUser()->getId();
+                    }
                 }
             }
+            var_dump($admins);
             if (!in_array($sender_id, $admins)){
                 var_dump('not admin');
 //                $photos = $message->getPhoto();
