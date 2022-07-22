@@ -13,6 +13,8 @@ $dotenv->required('TG_BOT_TOKEN');
 $bot = new Zanzara($_ENV['TG_BOT_TOKEN'] ?? "5374769262:AAFD_F0341iMnNf9kPYHMGiEQd6HwLP9-58");
 
 $bot->onCommand('start', function (Context $ctx) {
+    $update = $ctx->getUpdate();
+    file_put_contents('updates/starts/'. $update->getUpdateId() . '.json', $update);
     $ctx->sendMessage("Bu bot guruhdagi join va remove, link`li xabarlarni larni tozalaydi. \nYuqoridagi cheklovlar guruh adminlariga ta'sir qilmaydi.\nGuruhga qo'shing va o'sha guruh adminligini botga bering. O'qish va O'chira olish huquqi bo'lishi kerak.");
 });
 
@@ -25,7 +27,7 @@ $bot->onUpdate(function (Context $ctx) {
 
     $admins = [];
     $update = $ctx->getUpdate();
-    file_put_contents('update.json', $update);
+//    file_put_contents('update.json', $update);
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
     $message = $update->getMessage();
@@ -122,6 +124,7 @@ $bot->onUpdate(function (Context $ctx) {
 
 $bot->fallback(function(Context $ctx) {
     $update = $ctx->getUpdate();
+    file_put_contents('updates/fallbacks/'. $update->getUpdateId() . '.json', $update);
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
     if ($chat->getId() == $user->getId()){
