@@ -49,7 +49,6 @@ $bot->onUpdate(function (Context $ctx) {
 
         $ctx->getChatAdministrators($chat_id)->then(
             function ($admin_members) use(&$admins, $ctx, $update, $message, $user, $chat, $sender_id, $chat_id, $name){
-
             var_dump($admins);
             if (is_array($admin_members)){
                 foreach ($admin_members as $member){
@@ -76,10 +75,27 @@ $bot->onUpdate(function (Context $ctx) {
 //                        'parse_mode' => 'HTML'
 //                    ]);
 //                }
+
                 $entities = $message->getEntities();
+
+                $caption_entities = $message->getCaptionEntities();
+
                 if (is_array($entities)){
                     foreach ($entities as $entity){
-                        if ($entity->getType() == 'text_link'){
+                        if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
+                            $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+
+                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
+                                'chat_id' => $chat_id,
+                                'parse_mode' => 'HTML'
+                            ]);
+                            break;
+                        }
+                    }
+                }
+                if (is_array($caption_entities)){
+                    foreach ($caption_entities as $entity){
+                        if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
                             $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
                             $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
