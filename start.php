@@ -83,14 +83,15 @@ $bot->onUpdate(function (Context $ctx) {
 //                    ]);
 //                }
 
-                if ($message->getForwardFrom()){
-                    $ctx->deleteMessage($chat->getId(), $message->getMessageId());
-                }
-
                 $entities = $message->getEntities();
                 $caption_entities = $message->getCaptionEntities();
 
                 if (is_array($entities)){
+
+                    if ($message->getForwardFrom()){
+                        $ctx->deleteMessage($chat->getId(), $message->getMessageId());
+                    }
+
                     foreach ($entities as $entity){
                         if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
                             $ctx->deleteMessage($chat->getId(), $message->getMessageId());
