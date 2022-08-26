@@ -95,9 +95,9 @@ $bot->onUpdate(function (Context $ctx) {
                             }
 
                             foreach ($entities as $entity){
-                                if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
-                                    $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
+                                if ($entity->getType() == 'text_link' || $entity->getType() == 'url' || $entity->getType() == 'mention' ){
+                                    $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 //                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
 //                                'chat_id' => $chat_id,
 //                                'parse_mode' => 'HTML'
@@ -108,7 +108,7 @@ $bot->onUpdate(function (Context $ctx) {
                         }
                         if (is_array($caption_entities)){
                             foreach ($caption_entities as $entity){
-                                if ($entity->getType() == 'text_link' || $entity->getType() == 'url'){
+                                if ($entity->getType() == 'text_link' || $entity->getType() == 'url' || $entity->getType() == 'mention' ){
                                     $ctx->deleteMessage($chat->getId(), $message->getMessageId());
 
 //                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
