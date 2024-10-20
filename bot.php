@@ -56,74 +56,11 @@ $db->exec("CREATE TABLE IF NOT EXISTS voters (
 $bot = new Zanzara($botToken);
 
 $bot->onCommand('start@' . $botUsername, function (Context $ctx) use ($db) {
-    // Get the effective chat information
-    $chat = $ctx->getEffectiveChat();
-    $chatType = $chat->getType();
-
-    // Only handle the command in group or supergroup
-    if ($chatType === 'supergroup' || $chatType === 'group') {
-        $chatId = $chat->getId();
-        $userId = $ctx->getEffectiveUser()->getId();
-
-        // Fetch the bot's information (including bot ID)
-        $ctx->getMe()->then(function ($botInfo) use ($ctx, $db, $chatId, $userId) {
-            $botId = $botInfo->getId(); // Get the bot's ID from getMe()
-
-            // Debug: show that the command was received and we're fetching admins
-            $ctx->sendMessage("Received /start@{$botInfo->getUsername()} in a group. Fetching admins...");
-
-            // Fetch chat administrators to verify if the user and the bot are admins
-            $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $botId) {
-                $isAdmin = false;
-                $isBotAdmin = false;
-
-                // Now check if the user issuing the command is an admin and if the bot is an admin
-                foreach ($admins as $admin) {
-                    $adminUser = $admin->getUser(); // Get the User object
-
-                    if ($adminUser->getId() === $userId) {
-                        $isAdmin = true; // Check if the user issuing the command is an admin
-                        $ctx->sendMessage("User is an admin.");
-                    }
-                    if ($adminUser->isBot() && $adminUser->getId() == $botId) {
-                        $isBotAdmin = true; // Check if the bot itself is an admin
-                        $ctx->sendMessage("Bot is an admin.");
-                    }
-                }
-
-                // Handle the rest of the logic...
-                if ($isBotAdmin) {
-                    if ($isAdmin) {
-                        // Check if there are settings in the database for this group
-                        $stmt = $db->prepare("SELECT * FROM group_settings WHERE chat_id = ?");
-                        $stmt->execute([$chatId]);
-                        $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                        if ($groupSettings) {
-                            $ctx->sendMessage("You're all set! ✅");
-                        } else {
-                            // Insert the default settings and notify the user
-                            $stmt = $db->prepare("INSERT INTO group_settings (chat_id, spam_threshold, cleanup_enabled) VALUES (?, ?, ?)");
-                            $stmt->execute([$chatId, 5, 1]); // Default spam_threshold = 5, cleanup_enabled = 1
-                            $ctx->sendMessage("Settings initialized for the group. You're all set! ✅");
-                        }
-                    } else {
-                        $ctx->sendMessage("Only group admins can configure the bot.");
-                    }
-                } else {
-                    $ctx->sendMessage("Please make me an admin in the group, I can help you control the group.");
-                }
-            })->otherwise(function ($error) use ($ctx) {
-                // Handle any errors with fetching administrators
-                $ctx->sendMessage("Error fetching chat administrators: " . $error->getMessage());
-            });
-        });
-    } else {
-        $ctx->sendMessage("This command is only available in group chats.");
-    }
+    handleStartCommand($ctx, $db);
 });
-
-
+$bot->onCommand('start', function (Context $ctx) use ($db) {
+    handleStartCommand($ctx, $db);
+});
 
 $bot->onCommand('help', function (Context $ctx) {
     $helpMessage = "
@@ -232,67 +169,141 @@ $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
     $user = $ctx->getEffectiveUser();
     $chat = $ctx->getEffectiveChat();
 
-    // Check if the message contains links
-    if ($message) {
+    try {
 
-        $chatId = $ctx->getEffectiveChat()->getId();
+        // Check if the message contains links
+        if ($message) {
 
-        // Check if the message contains new chat members (user joined) or a left chat member (user left)
-        if ($message->getNewChatMembers() || $message->getLeftChatMember()) {
+            $chatId = $ctx->getEffectiveChat()->getId();
 
-            // Fetch group settings to check if cleanup is enabled
-            $stmt = $db->prepare("SELECT cleanup_enabled FROM group_settings WHERE chat_id = ?");
-            $stmt->execute([$chatId]);
-            $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Check if the message contains new chat members (user joined) or a left chat member (user left)
+            if ($message->getNewChatMembers() || $message->getLeftChatMember()) {
 
-            // If cleanup is enabled, handle join/leave messages
-            if ($groupSettings && $groupSettings['cleanup_enabled']) {
-                handleJoinLeaveMessages($ctx, $db);
+                // Fetch group settings to check if cleanup is enabled
+                $stmt = $db->prepare("SELECT cleanup_enabled FROM group_settings WHERE chat_id = ?");
+                $stmt->execute([$chatId]);
+                $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                // If cleanup is enabled, handle join/leave messages
+                if ($groupSettings && $groupSettings['cleanup_enabled']) {
+                    handleJoinLeaveMessages($ctx, $db);
+                }
             }
+
         }
-
-    }
-
-    if ($message && $message->getText()) {
-
         $text = $message->getText();
-        // Match both '/set_threshold' and '/set_threshold@<bot_username>'
-        if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
-            handleSetThreshold($ctx, $db, $matches[2]);  // Pass the threshold value from the command
-        }
 
-        $entities = $message->getEntities();
-        if ($entities) {
-            foreach ($entities as $entity) {
-                $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
-                if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
-                    handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
-                    break;
+        if ($message && $text) {
+            // Match both '/set_threshold' and '/set_threshold@<bot_username>'
+            if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
+                handleSetThreshold($ctx, $db, $matches[2]);  // Pass the threshold value from the command
+            }
+
+            $entities = $message->getEntities();
+            if ($entities) {
+                foreach ($entities as $entity) {
+                    $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
+                    if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
+                        handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
+                        break;
+                    }
                 }
             }
         }
-    }
 
-    // Handle callback queries (votes)
-    $callbackQuery = $ctx->getCallbackQuery();
-    if ($callbackQuery) {
-        $callbackData = $callbackQuery->getData();
-        $user = $callbackQuery->getFrom();
-        $messageId = $callbackQuery->getMessage()->getMessageId();
-        $chatId = $callbackQuery->getMessage()->getChat()->getId();
+        // Handle callback queries (votes)
+        $callbackQuery = $ctx->getCallbackQuery();
+        if ($callbackQuery) {
+            $callbackData = $callbackQuery->getData();
+            $user = $callbackQuery->getFrom();
+            $messageId = $callbackQuery->getMessage()->getMessageId();
+            $chatId = $callbackQuery->getMessage()->getChat()->getId();
 
-        if (strpos($callbackData, 'vote_like_') !== false) {
-            $msgId = str_replace('vote_like_', '', $callbackData);
-            incrementVote($db, $msgId, $chatId, 'thumbs_up', $ctx, $messageId, $chatId, $user);
-        } elseif (strpos($callbackData, 'vote_dislike_') !== false) {
-            $msgId = str_replace('vote_dislike_', '', $callbackData);
-            incrementVote($db, $msgId, $chatId, 'thumbs_down', $ctx, $messageId, $chatId, $user);
+            if (strpos($callbackData, 'vote_like_') !== false) {
+                $msgId = str_replace('vote_like_', '', $callbackData);
+                incrementVote($db, $msgId, $chatId, 'thumbs_up', $ctx, $messageId, $chatId, $user);
+            } elseif (strpos($callbackData, 'vote_dislike_') !== false) {
+                $msgId = str_replace('vote_dislike_', '', $callbackData);
+                incrementVote($db, $msgId, $chatId, 'thumbs_down', $ctx, $messageId, $chatId, $user);
+            }
         }
+    } catch (\Exception $e) {
+        // Handle errors
+        error_log("Error processing update: " . $e->getMessage());
+        // Optionally, you can notify the group or admin if necessary
     }
 });
 
 
+function handleStartCommand(Context $ctx, $db)
+{
+    // Get the effective chat information
+    $chat = $ctx->getEffectiveChat();
+    $chatType = $chat->getType();
+
+    // Only handle the command in group or supergroup
+    if ($chatType === 'supergroup' || $chatType === 'group') {
+        $chatId = $chat->getId();
+        $userId = $ctx->getEffectiveUser()->getId();
+
+        // Fetch the bot's information (including bot ID)
+        $ctx->getMe()->then(function ($botInfo) use ($ctx, $db, $chatId, $userId) {
+            $botId = $botInfo->getId(); // Get the bot's ID from getMe()
+
+            // Debug: show that the command was received and we're fetching admins
+            $ctx->sendMessage("Received /start in the group. checking permissions...");
+
+            // Fetch chat administrators to verify if the user and the bot are admins
+            $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $botId) {
+                $isAdmin = false;
+                $isBotAdmin = false;
+
+                // Now check if the user issuing the command is an admin and if the bot is an admin
+                foreach ($admins as $admin) {
+                    $adminUser = $admin->getUser(); // Get the User object
+
+                    if ($adminUser->getId() === $userId) {
+                        $isAdmin = true; // Check if the user issuing the command is an admin
+                        $ctx->sendMessage("User is an admin.");
+                    }
+                    if ($adminUser->isBot() && $adminUser->getId() == $botId) {
+                        $isBotAdmin = true; // Check if the bot itself is an admin
+                        $ctx->sendMessage("Bot is an admin.");
+                    }
+                }
+
+                // Handle the rest of the logic...
+                if ($isBotAdmin) {
+                    if ($isAdmin) {
+                        // Check if there are settings in the database for this group
+                        $stmt = $db->prepare("SELECT * FROM group_settings WHERE chat_id = ?");
+                        $stmt->execute([$chatId]);
+                        $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($groupSettings) {
+                            $ctx->sendMessage("You're all set! ✅");
+                        } else {
+                            // Insert the default settings and notify the user
+                            $stmt = $db->prepare("INSERT INTO group_settings (chat_id, spam_threshold, cleanup_enabled) VALUES (?, ?, ?)");
+                            $stmt->execute([$chatId, 5, 1]); // Default spam_threshold = 5, cleanup_enabled = 1
+                            $ctx->sendMessage("Settings initialized for the group. You're all set! ✅");
+                        }
+                    } else {
+                        $ctx->sendMessage("Only group admins can configure the bot.");
+                    }
+                } else {
+                    $ctx->sendMessage("Please make me an admin in the group, I can help you control the group.");
+                }
+            })->otherwise(function ($error) use ($ctx) {
+                // Handle any errors with fetching administrators
+                $ctx->sendMessage("Error fetching chat administrators: " . $error->getMessage());
+            });
+        });
+    } else {
+        $ctx->sendMessage("This command is only available in group chats.");
+    }
+}
 function handleJoinLeaveMessages(Context $ctx, $db)
 {
     $message = $ctx->getMessage();
