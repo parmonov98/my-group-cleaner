@@ -55,6 +55,76 @@ $db->exec("CREATE TABLE IF NOT EXISTS voters (
 
 $bot = new Zanzara($botToken);
 
+$bot->onCommand('start@' . $botUsername, function (Context $ctx) use ($db) {
+    // Get the effective chat information
+    $chat = $ctx->getEffectiveChat();
+    $chatType = $chat->getType();
+
+    // Only handle the command in group or supergroup
+    if ($chatType === 'supergroup' || $chatType === 'group') {
+        $chatId = $chat->getId();
+        $userId = $ctx->getEffectiveUser()->getId();
+
+        // Fetch the bot's information (including bot ID)
+        $ctx->getMe()->then(function ($botInfo) use ($ctx, $db, $chatId, $userId) {
+            $botId = $botInfo->getId(); // Get the bot's ID from getMe()
+
+            // Debug: show that the command was received and we're fetching admins
+            $ctx->sendMessage("Received /start@{$botInfo->getUsername()} in a group. Fetching admins...");
+
+            // Fetch chat administrators to verify if the user and the bot are admins
+            $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $botId) {
+                $isAdmin = false;
+                $isBotAdmin = false;
+
+                // Now check if the user issuing the command is an admin and if the bot is an admin
+                foreach ($admins as $admin) {
+                    $adminUser = $admin->getUser(); // Get the User object
+
+                    if ($adminUser->getId() === $userId) {
+                        $isAdmin = true; // Check if the user issuing the command is an admin
+                        $ctx->sendMessage("User is an admin.");
+                    }
+                    if ($adminUser->isBot() && $adminUser->getId() == $botId) {
+                        $isBotAdmin = true; // Check if the bot itself is an admin
+                        $ctx->sendMessage("Bot is an admin.");
+                    }
+                }
+
+                // Handle the rest of the logic...
+                if ($isBotAdmin) {
+                    if ($isAdmin) {
+                        // Check if there are settings in the database for this group
+                        $stmt = $db->prepare("SELECT * FROM group_settings WHERE chat_id = ?");
+                        $stmt->execute([$chatId]);
+                        $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($groupSettings) {
+                            $ctx->sendMessage("You're all set! ✅");
+                        } else {
+                            // Insert the default settings and notify the user
+                            $stmt = $db->prepare("INSERT INTO group_settings (chat_id, spam_threshold, cleanup_enabled) VALUES (?, ?, ?)");
+                            $stmt->execute([$chatId, 5, 1]); // Default spam_threshold = 5, cleanup_enabled = 1
+                            $ctx->sendMessage("Settings initialized for the group. You're all set! ✅");
+                        }
+                    } else {
+                        $ctx->sendMessage("Only group admins can configure the bot.");
+                    }
+                } else {
+                    $ctx->sendMessage("Please make me an admin in the group, I can help you control the group.");
+                }
+            })->otherwise(function ($error) use ($ctx) {
+                // Handle any errors with fetching administrators
+                $ctx->sendMessage("Error fetching chat administrators: " . $error->getMessage());
+            });
+        });
+    } else {
+        $ctx->sendMessage("This command is only available in group chats.");
+    }
+});
+
+
+
 $bot->onCommand('help', function (Context $ctx) {
     $helpMessage = "
 Here are the available commands for this bot:

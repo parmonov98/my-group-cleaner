@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: "my-group-cleaner-bot", // Name of your bot application
-            script: "php",        // Command to run PHP
+            script: "/usr/bin/php8.3",        // Command to run PHP
             args: "bot.php",      // Script to execute
             interpreter: "none",  // Do not use an additional interpreter, use system's PHP
             instances: 1,         // Number of instances (1 means single process)
