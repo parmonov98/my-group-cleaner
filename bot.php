@@ -65,17 +65,19 @@ $bot->onCommand('start', function (Context $ctx) use ($db) {
 $bot->onCommand('help', function (Context $ctx) {
     $helpMessage = "
 Here are the available commands for this bot:
-/start - Start interacting with the bot
-/help - Display this help message
-/set_threshold [number] - Set the spam vote threshold (admin only)
-/toggle_cleanup - Toggle join/leave message cleanup in the group (admin only)
-    
+- /start - Start interacting with the bot
+- /help - Display this help message
+- /set_threshold [number] - Set the spam vote threshold (admin only)
+- /toggle_cleanup - Toggle join/leave message cleanup in the group (admin only)
+- /spam - Report a message as spam by replying to it
+
 Features:
 - This bot helps clean up the group by automatically deleting join/leave messages when enabled.
 - It initiates voting for messages with links to decide if they should be marked as spam and deleted.
 - Group members can vote using 👍 or 👎 buttons on such messages.
 - If the spam vote threshold is reached, the message will be deleted automatically.
 - Each group member can vote only once per message, and points will be awarded for participation.
+- Users can also report messages as spam by replying to them and using the /spam command.
 ";
 
     // Send the help message to the user
