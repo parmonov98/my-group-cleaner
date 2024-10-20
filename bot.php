@@ -55,14 +55,32 @@ $db->exec("CREATE TABLE IF NOT EXISTS voters (
 
 $bot = new Zanzara($botToken);
 
+$bot->onCommand('help', function (Context $ctx) {
+    $helpMessage = "
+Here are the available commands for this bot:
+/start - Start interacting with the bot
+/help - Display this help message
+/set_threshold [number] - Set the spam vote threshold (admin only)
+/toggle_cleanup - Toggle join/leave message cleanup in the group (admin only)
+    
+Features:
+- This bot helps clean up the group by automatically deleting join/leave messages when enabled.
+- It initiates voting for messages with links to decide if they should be marked as spam and deleted.
+- Group members can vote using 👍 or 👎 buttons on such messages.
+- If the spam vote threshold is reached, the message will be deleted automatically.
+- Each group member can vote only once per message, and points will be awarded for participation.
+";
+
+    // Send the help message to the user
+    $ctx->sendMessage($helpMessage);
+});
+
 // Handle both `/set_threshold` and `/set_threshold@botUsername` commands
 $bot->onCommand('set_threshold', function (Context $ctx) use ($db) {
-    echo "1";
     handleSetThreshold($ctx, $db);
 });
 
 $bot->onCommand('set_threshold@' . $botUsername, function (Context $ctx) use ($db) {
-    echo "2";
     handleSetThreshold($ctx, $db);
 });
 // Add a command to toggle join/leave cleanup (admin only)
