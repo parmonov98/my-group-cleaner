@@ -145,6 +145,7 @@ Features:
     $ctx->sendMessage($helpMessage);
 });
 
+
 // Handle both `/set_threshold` and `/set_threshold@botUsername` commands
 $bot->onCommand('set_threshold', function (Context $ctx) use ($db) {
     handleSetThreshold($ctx, $db);
@@ -192,6 +193,38 @@ $bot->onCommand('toggle_cleanup', function (Context $ctx) use ($db) {
             $ctx->sendMessage("You must be an admin to toggle this setting.");
         }
     });
+});
+
+// Handle the /spam command
+$bot->onCommand('spam', function (Context $ctx) use ($db) {
+    $message = $ctx->getMessage();
+    $replyToMessage = $message->getReplyToMessage();
+
+    // Check if the command is a reply to another message
+    if ($replyToMessage) {
+        $messageId = $replyToMessage->getMessageId();
+        $chatId = $message->getChat()->getId();
+
+        // Store the message for voting purposes in the votes table and set is_voting to true
+        $stmt = $db->prepare("INSERT INTO votes (message_id, chat_id, is_voting) VALUES (?, ?, 1)
+                              ON CONFLICT (message_id, chat_id) DO NOTHING");
+        $stmt->execute([$messageId, $chatId]);
+
+        // Send a message with voting buttons (👍 and 👎) as a reply to the original message
+        $ctx->sendMessage("Do you think this message is spam?", [
+            'reply_to_message_id' => $messageId,
+            'reply_markup' => [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '👍', 'callback_data' => 'vote_like_' . $messageId],
+                        ['text' => '👎', 'callback_data' => 'vote_dislike_' . $messageId]
+                    ]
+                ]
+            ]
+        ]);
+    } else {
+        $ctx->sendMessage("Please reply to the message you want to mark as spam using /spam.");
+    }
 });
 // Handle link detection and voting initiation
 $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
