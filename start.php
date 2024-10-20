@@ -10,7 +10,7 @@ $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 $dotenv->required('TG_BOT_TOKEN');
 
-$bot = new Zanzara($_ENV['TG_BOT_TOKEN'] ?? "5374769262:AAFD_F0341iMnNf9kPYHMGiEQd6HwLP9-58");
+$bot = new Zanzara($_ENV['TG_BOT_TOKEN'] ?? "864286200:AAEFTcN8X5ETAS-BMOMTd9oWch_4r8cF9go");
 
 $bot->onCommand('start', function (Context $ctx) {
     $update = $ctx->getUpdate();
@@ -24,11 +24,9 @@ $bot->onCommand('help', function (Context $ctx) {
 
 $bot->onUpdate(function (Context $ctx) {
 
-
     $admins = [];
     $update = $ctx->getUpdate();
     var_dump($update->jsonSerialize());
-//    file_put_contents('update.json', $update);
     $user = $update->getEffectiveUser();
     $chat = $update->getEffectiveChat();
     $message = $update->getMessage();
@@ -62,28 +60,9 @@ $bot->onUpdate(function (Context $ctx) {
                             }
                         }
                     }
-//            var_dump($admins);
 
                     if (!in_array($sender_id, $admins)){
                         var_dump('not admin');
-//                $photos = $message->getPhoto();
-//                if (is_array($photos)){
-//                    $ctx->deleteMessage($chat_id, $message->getMessageId());
-//
-//                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, rasm tashlamang, iltimos!", [
-//                        'chat_id' => $chat_id,
-//                        'parse_mode' => 'HTML'
-//                    ]);
-//                }
-//                $video = $message->getVideo();
-//                if ($video != null){
-//                    $ctx->deleteMessage($chat_id, $message->getMessageId());
-//
-//                    $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, video tashlamang, iltimos!", [
-//                        'chat_id' => $chat_id,
-//                        'parse_mode' => 'HTML'
-//                    ]);
-//                }
 
                         $entities = $message->getEntities();
                         $caption_entities = $message->getCaptionEntities();
@@ -98,10 +77,6 @@ $bot->onUpdate(function (Context $ctx) {
 
                                 if ($entity->getType() == 'text_link' || $entity->getType() == 'url' || $entity->getType() == 'mention' ){
                                     $ctx->deleteMessage($chat->getId(), $message->getMessageId());
-//                            $ctx->sendMessage("<a href='tg://user?id=$sender_id'>$name</a>, reklama tarqatmang, iltimos!", [
-//                                'chat_id' => $chat_id,
-//                                'parse_mode' => 'HTML'
-//                            ]);
                                     break;
                                 }
                             }
