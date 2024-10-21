@@ -509,21 +509,21 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             $ctx->deleteMessage($botChatId, $botMessageId);
 
             // Fetch voters
-            $stmt = $db->prepare("SELECT tg_id, user_mention FROM voters WHERE message_id = ? AND chat_id = ?");
-            $stmt->execute([$messageId, $chatId]);
-            $voters = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $votersMentions = array_map(function ($voter) {
-                return "<a href=\"tg://user?id={$voter['tg_id']}\">{$voter['user_mention']}</a>";
-            }, $voters);
-            $votersMentionsString = implode(', ', $votersMentions);
-
-            // Edit the bot's message informing about the deletion of the bot's message
-            $ctx->editMessageText("The voting message has been deleted due to receiving too many dislikes. Thanks to voters: $votersMentionsString.", [
-                'chat_id' => $botChatId,
-                'message_id' => $botMessageId,
-                'parse_mode' => 'HTML'
-            ]);
+//            $stmt = $db->prepare("SELECT tg_id, user_mention FROM voters WHERE message_id = ? AND chat_id = ?");
+//            $stmt->execute([$messageId, $chatId]);
+//            $voters = $stmt->fetchAll(PDO::FETCH_ASSOC);
+//
+//            $votersMentions = array_map(function ($voter) {
+//                return "<a href=\"tg://user?id={$voter['tg_id']}\">{$voter['user_mention']}</a>";
+//            }, $voters);
+//            $votersMentionsString = implode(', ', $votersMentions);
+//
+//            // Edit the bot's message informing about the deletion of the bot's message
+//            $ctx->editMessageText("The voting message has been deleted due to receiving too many dislikes. Thanks to voters: $votersMentionsString.", [
+//                'chat_id' => $botChatId,
+//                'message_id' => $botMessageId,
+//                'parse_mode' => 'HTML'
+//            ]);
         } else {
             // Edit the bot's message with the vote count and keep the buttons
             $ctx->editMessageText("Do you think it is spam?\n\n👍 - $thumbsUp votes\n👎 - $thumbsDown votes", [
