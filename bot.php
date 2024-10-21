@@ -86,12 +86,12 @@ Features:
 
 
 // Handle both `/set_threshold` and `/set_threshold@botUsername` commands
-$bot->onCommand('set_threshold', function (Context $ctx) use ($db) {
-    handleSetThreshold($ctx, $db);
+$bot->onCommand('set_threshold', callback: function (Context $ctx) use ($db, $botUsername) {
+    handleSetThreshold($ctx, $db, $botUsername);
 });
 
-$bot->onCommand('set_threshold@' . $botUsername, function (Context $ctx) use ($db) {
-    handleSetThreshold($ctx, $db);
+$bot->onCommand('set_threshold@' . $botUsername, callback: function (Context $ctx) use ($db, $botUsername) {
+    handleSetThreshold($ctx, $db, $botUsername);
 });
 // Add a command to toggle join/leave cleanup (admin only)
 $bot->onCommand('toggle_cleanup', function (Context $ctx) use ($db) {
@@ -192,23 +192,24 @@ $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
                 }
             }
 
-        }
-        $text = $message->getText();
 
-        if ($message && $text) {
-            // Match both '/set_threshold' and '/set_threshold@<bot_username>'
-            if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
-                handleSetThreshold($ctx, $db, $matches[2]);  // Pass the threshold value from the command
-            }
+            $text = $message->getText();
+            if ($text){
 
-            $entities = $message->getEntities();
-            if ($entities) {
-                foreach ($entities as $entity) {
-                    $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
-                    if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
-                        handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
-                        break;
+                // Match both '/set_threshold' and '/set_threshold@<bot_username>'
+                if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
+                    handleSetThreshold($ctx, $db, $botUsername, $matches[2]);  // Pass the threshold value from the command
+                }
+
+                $entities = $message->getEntities();
+                if ($entities) {
+                    foreach ($entities as $entity) {
+                        $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
+                        $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
+                        if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
+                            handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
+                            break;
+                        }
                     }
                 }
             }
@@ -219,17 +220,25 @@ $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
         if ($callbackQuery) {
             $callbackData = $callbackQuery->getData();
             $user = $callbackQuery->getFrom();
-            $messageId = $callbackQuery->getMessage()->getMessageId();
-            $chatId = $callbackQuery->getMessage()->getChat()->getId();
 
-            if (strpos($callbackData, 'vote_like_') !== false) {
-                $msgId = str_replace('vote_like_', '', $callbackData);
-                incrementVote($db, $msgId, $chatId, 'thumbs_up', $ctx, $messageId, $chatId, $user);
-            } elseif (strpos($callbackData, 'vote_dislike_') !== false) {
-                $msgId = str_replace('vote_dislike_', '', $callbackData);
-                incrementVote($db, $msgId, $chatId, 'thumbs_down', $ctx, $messageId, $chatId, $user);
+            // Check if the message object exists before accessing it
+            $message = $callbackQuery->getMessage();
+            if ($message) {
+                $messageId = $message->getMessageId();
+                $chatId = $message->getChat()->getId();
+
+                if (strpos($callbackData, 'vote_like_') !== false) {
+                    $msgId = str_replace('vote_like_', '', $callbackData);
+                    incrementVote($db, $msgId, $chatId, 'thumbs_up', $ctx, $messageId, $chatId, $user);
+                } elseif (strpos($callbackData, 'vote_dislike_') !== false) {
+                    $msgId = str_replace('vote_dislike_', '', $callbackData);
+                    incrementVote($db, $msgId, $chatId, 'thumbs_down', $ctx, $messageId, $chatId, $user);
+                }
+            } else {
+                error_log("Received callback query without message.");
             }
         }
+
     } catch (\Exception $e) {
         // Handle errors
         error_log("Error processing update: " . $e->getMessage());
@@ -361,8 +370,23 @@ function handleSpamVoteRequest(Context $ctx, $db)
 /**
  * Handle setting the spam threshold command.
  */
-function handleSetThreshold(Context $ctx, $db, $threshold)
+function handleSetThreshold(Context $ctx, $db, $botUsername, $threshold = 5)
 {
+
+    $message = $ctx->getMessage();
+    if (!$message) return;
+
+    $text = $message->getText();
+    if (!$text) return;
+
+    print_r($text);
+    // Match both '/set_threshold' and '/set_threshold@<bot_username>'
+    if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
+        if (!$matches[2]){
+            return;
+        }
+        $threshold = $matches[2];
+    }
     // Get the current chat information
     $chat = $ctx->getEffectiveChat();
     $chatId = $chat->getId();  // Use getEffectiveChat() to retrieve the current chat
