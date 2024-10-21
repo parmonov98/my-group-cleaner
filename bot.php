@@ -454,7 +454,7 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
     $stmt = $db->prepare("INSERT INTO voters (message_id, chat_id, tg_id, user_mention) VALUES (?, ?, ?, ?)");
     $stmt->execute([$messageId, $chatId, $tgId, $username]);
 
-    // Fetch the current vote counts
+    // Fetch the current vote counts and voters
     $stmt = $db->prepare("SELECT thumbs_up, thumbs_down FROM votes WHERE message_id = ? AND chat_id = ?");
     $stmt->execute([$messageId, $chatId]);
     $voteData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -479,8 +479,7 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             $threshold = $groupSettings['spam_threshold'];
         }
 
-        // Check if the voting threshold for likes has been reached
-
+        // Check if the voting threshold has been reached
         if ($thumbsUp >= $threshold) {
             // Delete the original suspicious message
             $ctx->deleteMessage($chatId, $messageId);
@@ -495,11 +494,16 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             }, $voters);
             $votersMentionsString = implode(', ', $votersMentions);
 
-            // Inform the group about the deletion and thank the voters
-            $ctx->sendMessage("The message was counted as spam and has been deleted. Thanks to voters: $votersMentionsString.", [
-                'parse_mode' => 'HTML' // Added parse_mode for HTML formatting
+            // Edit the bot's message with a thank you note to voters and remove the buttons
+            $ctx->editMessageText("The message was counted as spam and has been deleted. Thanks to voters: $votersMentionsString.", [
+                'chat_id' => $botChatId,
+                'message_id' => $botMessageId,
+                'parse_mode' => 'HTML'
             ]);
 
+            // Set is_voting to false after voting is completed
+            $stmt = $db->prepare("UPDATE votes SET is_voting = 0 WHERE message_id = ? AND chat_id = ?");
+            $stmt->execute([$messageId, $chatId]);
         } elseif ($thumbsDown >= $threshold) {
             // Delete the bot's reply message
             $ctx->deleteMessage($botChatId, $botMessageId);
@@ -514,12 +518,14 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             }, $voters);
             $votersMentionsString = implode(', ', $votersMentions);
 
-            // Inform the group about the deletion of the bot's message
-            $ctx->sendMessage("The voting message has been deleted due to receiving too many dislikes. Thanks to voters: $votersMentionsString.", [
-                'parse_mode' => 'HTML' // Added parse_mode for HTML formatting
+            // Edit the bot's message informing about the deletion of the bot's message
+            $ctx->editMessageText("The voting message has been deleted due to receiving too many dislikes. Thanks to voters: $votersMentionsString.", [
+                'chat_id' => $botChatId,
+                'message_id' => $botMessageId,
+                'parse_mode' => 'HTML'
             ]);
         } else {
-            // Update the bot's message with the vote count and keep the buttons
+            // Edit the bot's message with the vote count and keep the buttons
             $ctx->editMessageText("Do you think it is spam?\n\n👍 - $thumbsUp votes\n👎 - $thumbsDown votes", [
                 'chat_id' => $botChatId,
                 'message_id' => $botMessageId,
