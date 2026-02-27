@@ -11,6 +11,25 @@ $dotenv->load();
 $botToken = $_ENV['TG_BOT_TOKEN'];
 $botUsername = $_ENV['TG_BOT_USERNAME'];
 
+$translations = require __DIR__ . '/lang.php';
+
+function __($key, $lang = 'uz', ...$args)
+{
+    global $translations;
+    $text = $translations[$lang][$key] ?? $translations['en'][$key] ?? $key;
+    if (!empty($args)) {
+        return sprintf($text, ...$args);
+    }
+    return $text;
+}
+
+function getLang($db, $chatId)
+{
+    $stmt = $db->prepare("SELECT language FROM group_settings WHERE chat_id = ?");
+    $stmt->execute([$chatId]);
+    return $stmt->fetchColumn() ?: 'uz';
+}
+
 // Create SQLite DB connection
 $db = new PDO('sqlite:' . __DIR__ . '/bot_data.db');
 
@@ -42,7 +61,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS ai_messages (
 $db->exec("CREATE TABLE IF NOT EXISTS group_settings (
     chat_id INTEGER PRIMARY KEY,
     spam_threshold INTEGER DEFAULT 5,
-    cleanup_enabled INTEGER DEFAULT 1
+    cleanup_enabled INTEGER DEFAULT 1,
+    language TEXT DEFAULT 'uz'
 )");
 
 $db->exec("CREATE TABLE IF NOT EXISTS voters (
@@ -62,23 +82,10 @@ $bot->onCommand('start', function (Context $ctx) use ($db) {
     handleStartCommand($ctx, $db);
 });
 
-$bot->onCommand('help', function (Context $ctx) {
-    $helpMessage = "
-Here are the available commands for this bot:
-- /start - Start interacting with the bot
-- /help - Display this help message
-- /set_threshold [number] - Set the spam vote threshold (admin only)
-- /toggle_cleanup - Toggle join/leave message cleanup in the group (admin only)
-- /spam - Report a message as spam by replying to it
-
-Features:
-- This bot helps clean up the group by automatically deleting join/leave messages when enabled.
-- It initiates voting for messages with links to decide if they should be marked as spam and deleted.
-- Group members can vote using 👍 or 👎 buttons on such messages.
-- If the spam vote threshold is reached, the message will be deleted automatically.
-- Each group member can vote only once per message, and points will be awarded for participation.
-- Users can also report messages as spam by replying to them and using the /spam command.
-";
+$bot->onCommand('help', function (Context $ctx) use ($db) {
+    $chatId = $ctx->getEffectiveChat()->getId();
+    $lang = getLang($db, $chatId);
+    $helpMessage = __('help', $lang);
 
     // Send the help message to the user
     $ctx->sendMessage($helpMessage);
@@ -93,13 +100,24 @@ $bot->onCommand('set_threshold', callback: function (Context $ctx) use ($db, $bo
 $bot->onCommand('set_threshold@' . $botUsername, callback: function (Context $ctx) use ($db, $botUsername) {
     handleSetThreshold($ctx, $db, $botUsername);
 });
+
+// Handle /lang command
+$bot->onCommand('lang', function (Context $ctx) use ($db, $botUsername) {
+    handleLangCommand($ctx, $db, $botUsername);
+});
+
+$bot->onCommand('lang@' . $botUsername, function (Context $ctx) use ($db, $botUsername) {
+    handleLangCommand($ctx, $db, $botUsername);
+});
+
 // Add a command to toggle join/leave cleanup (admin only)
 $bot->onCommand('toggle_cleanup', function (Context $ctx) use ($db) {
-    $chatId = $ctx->getEffectiveChat()->getId();  // Use getEffectiveChat() here
+    $chatId = $ctx->getEffectiveChat()->getId();
     $userId = $ctx->getEffectiveUser()->getId();
+    $lang = getLang($db, $chatId);
 
     // Check if the user is an admin
-    $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId) {
+    $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $lang) {
         $isAdmin = false;
         foreach ($admins as $admin) {
             if ($admin->getUser()->getId() === $userId) {
@@ -118,18 +136,18 @@ $bot->onCommand('toggle_cleanup', function (Context $ctx) use ($db) {
                 // If no settings exist, insert the default setting (cleanup enabled)
                 $stmt = $db->prepare("INSERT INTO group_settings (chat_id, cleanup_enabled) VALUES (?, ?)");
                 $stmt->execute([$chatId, 1]);
-                $ctx->sendMessage("Join/leave message cleanup has been enabled.");
+                $ctx->sendMessage(__('cleanup_enabled', $lang));
             } else {
                 // Toggle the cleanup status
                 $newStatus = $groupSettings['cleanup_enabled'] ? 0 : 1;
                 $stmt = $db->prepare("UPDATE group_settings SET cleanup_enabled = ? WHERE chat_id = ?");
                 $stmt->execute([$newStatus, $chatId]);
 
-                $statusMessage = $newStatus ? "enabled" : "disabled";
-                $ctx->sendMessage("Join/leave message cleanup has been $statusMessage.");
+                $key = $newStatus ? 'cleanup_enabled' : 'cleanup_disabled';
+                $ctx->sendMessage(__($key, $lang));
             }
         } else {
-            $ctx->sendMessage("You must be an admin to toggle this setting.");
+            $ctx->sendMessage(__('admin_only', $lang));
         }
     });
 });
@@ -138,11 +156,12 @@ $bot->onCommand('toggle_cleanup', function (Context $ctx) use ($db) {
 $bot->onCommand('spam', function (Context $ctx) use ($db) {
     $message = $ctx->getMessage();
     $replyToMessage = $message->getReplyToMessage();
+    $chatId = $message->getChat()->getId();
+    $lang = getLang($db, $chatId);
 
     // Check if the command is a reply to another message
     if ($replyToMessage) {
         $messageId = $replyToMessage->getMessageId();
-        $chatId = $message->getChat()->getId();
 
         // Store the message for voting purposes in the votes table and set is_voting to true
         $stmt = $db->prepare("INSERT INTO votes (message_id, chat_id, is_voting) VALUES (?, ?, 1)
@@ -150,7 +169,7 @@ $bot->onCommand('spam', function (Context $ctx) use ($db) {
         $stmt->execute([$messageId, $chatId]);
 
         // Send a message with voting buttons (👍 and 👎) as a reply to the original message
-        $ctx->sendMessage("Do you think this message is spam?", [
+        $ctx->sendMessage(__('is_spam_query', $lang), [
             'reply_to_message_id' => $messageId,
             'reply_markup' => [
                 'inline_keyboard' => [
@@ -162,7 +181,7 @@ $bot->onCommand('spam', function (Context $ctx) use ($db) {
             ]
         ]);
     } else {
-        $ctx->sendMessage("Please reply to the message you want to mark as spam using /spam.");
+        $ctx->sendMessage(__('spam_report_reply', $lang));
     }
 });
 // Handle link detection and voting initiation
@@ -194,7 +213,7 @@ $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
 
 
             $text = $message->getText();
-            if ($text){
+            if ($text) {
 
                 // Match both '/set_threshold' and '/set_threshold@<bot_username>'
                 if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
@@ -203,14 +222,26 @@ $bot->onUpdate(function (Context $ctx) use ($db, $botUsername) {
 
                 $entities = $message->getEntities();
                 if ($entities) {
-                    foreach ($entities as $entity) {
-                        $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
-                        $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
-                        if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
-                            handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
-                            break;
+                    $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $message, $chat, $user, $entities) {
+                        $isAdmin = false;
+                        foreach ($admins as $admin) {
+                            if ($admin->getUser()->getId() === $user->getId()) {
+                                $isAdmin = true;
+                                break;
+                            }
                         }
-                    }
+
+                        if (!$isAdmin) {
+                            foreach ($entities as $entity) {
+                                $stmt = $db->prepare("INSERT INTO ai_messages (message_id, chat_id, user_id, message_text) VALUES (?, ?, ?, ?)");
+                                $stmt->execute([$message->getMessageId(), $chat->getId(), $user->getId(), $message->getText()]);
+                                if ($entity->getType() === 'url' || $entity->getType() === 'text_link') {
+                                    handleSpamVoteRequest($ctx, $db);  // Trigger the voting process
+                                    break;
+                                }
+                            }
+                        }
+                    });
                 }
             }
         }
@@ -263,10 +294,11 @@ function handleStartCommand(Context $ctx, $db)
             $botId = $botInfo->getId(); // Get the bot's ID from getMe()
 
             // Debug: show that the command was received and we're fetching admins
-            $ctx->sendMessage("Received /start in the group. checking permissions...");
+            $lang = getLang($db, $chatId);
+            $ctx->sendMessage(__('start_in_group', $lang));
 
             // Fetch chat administrators to verify if the user and the bot are admins
-            $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $botId) {
+            $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $botId, $lang) {
                 $isAdmin = false;
                 $isBotAdmin = false;
 
@@ -276,11 +308,11 @@ function handleStartCommand(Context $ctx, $db)
 
                     if ($adminUser->getId() === $userId) {
                         $isAdmin = true; // Check if the user issuing the command is an admin
-                        $ctx->sendMessage("User is an admin.");
+                        $ctx->sendMessage(__('user_is_admin', $lang));
                     }
                     if ($adminUser->isBot() && $adminUser->getId() == $botId) {
                         $isBotAdmin = true; // Check if the bot itself is an admin
-                        $ctx->sendMessage("Bot is an admin.");
+                        $ctx->sendMessage(__('bot_is_admin', $lang));
                     }
                 }
 
@@ -293,26 +325,26 @@ function handleStartCommand(Context $ctx, $db)
                         $groupSettings = $stmt->fetch(PDO::FETCH_ASSOC);
 
                         if ($groupSettings) {
-                            $ctx->sendMessage("You're all set! ✅");
+                            $ctx->sendMessage(__('all_set', $lang));
                         } else {
                             // Insert the default settings and notify the user
                             $stmt = $db->prepare("INSERT INTO group_settings (chat_id, spam_threshold, cleanup_enabled) VALUES (?, ?, ?)");
                             $stmt->execute([$chatId, 5, 1]); // Default spam_threshold = 5, cleanup_enabled = 1
-                            $ctx->sendMessage("Settings initialized for the group. You're all set! ✅");
+                            $ctx->sendMessage(__('settings_initialized', $lang));
                         }
                     } else {
-                        $ctx->sendMessage("Only group admins can configure the bot.");
+                        $ctx->sendMessage(__('only_admins_configure', $lang));
                     }
                 } else {
-                    $ctx->sendMessage("Please make me an admin in the group, I can help you control the group.");
+                    $ctx->sendMessage(__('make_me_admin', $lang));
                 }
-            })->otherwise(function ($error) use ($ctx) {
+            })->otherwise(function ($error) use ($ctx, $lang) {
                 // Handle any errors with fetching administrators
-                $ctx->sendMessage("Error fetching chat administrators: " . $error->getMessage());
+                $ctx->sendMessage(__('error_fetching_admins', $lang) . $error->getMessage());
             });
         });
     } else {
-        $ctx->sendMessage("This command is only available in group chats.");
+        $ctx->sendMessage(__('group_only', 'en')); // Default to English for private chats if not set
     }
 }
 function handleJoinLeaveMessages(Context $ctx, $db)
@@ -343,6 +375,7 @@ function handleSpamVoteRequest(Context $ctx, $db)
     $message = $ctx->getMessage();
     $messageId = $message->getMessageId();
     $chatId = $message->getChat()->getId();
+    $lang = getLang($db, $chatId);
 
     // Store the message for voting purposes in the votes table and set is_voting to true
     $stmt = $db->prepare("INSERT INTO votes (message_id, chat_id, is_voting) VALUES (?, ?, 1)
@@ -350,7 +383,7 @@ function handleSpamVoteRequest(Context $ctx, $db)
     $stmt->execute([$messageId, $chatId]);
 
     // Send a message with voting buttons (👍 and 👎) as a reply to the user's message
-    $ctx->sendMessage("Do you think this is spam?", [
+    $ctx->sendMessage(__('is_spam_query', $lang), [
         'reply_to_message_id' => $messageId,
         'reply_markup' => [
             'inline_keyboard' => [
@@ -364,6 +397,48 @@ function handleSpamVoteRequest(Context $ctx, $db)
 }
 
 
+function handleLangCommand(Context $ctx, $db, $botUsername)
+{
+    $message = $ctx->getMessage();
+    if (!$message)
+        return;
+
+    $text = $message->getText();
+    if (!$text)
+        return;
+
+    $chat = $ctx->getEffectiveChat();
+    $chatId = $chat->getId();
+    $userId = $ctx->getEffectiveUser()->getId();
+    $lang = getLang($db, $chatId);
+
+    if (preg_match("/^\/lang(@$botUsername)? (uz|en|ru)/", $text, $matches)) {
+        $newLang = $matches[2];
+
+        $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $newLang) {
+            $isAdmin = false;
+            foreach ($admins as $admin) {
+                if ($admin->getUser()->getId() === $userId) {
+                    $isAdmin = true;
+                    break;
+                }
+            }
+
+            if ($isAdmin) {
+                $stmt = $db->prepare("INSERT INTO group_settings (chat_id, language) VALUES (?, ?)
+                                      ON CONFLICT(chat_id) DO UPDATE SET language = ?");
+                $stmt->execute([$chatId, $newLang, $newLang]);
+                $ctx->sendMessage(__('lang_changed', $newLang, $newLang));
+            } else {
+                $ctx->sendMessage(__('admin_only', getLang($db, $chatId)));
+            }
+        });
+    } else {
+        $ctx->sendMessage(__('usage_lang', $lang));
+    }
+}
+
+
 /**
  * Handle setting the spam threshold command.
  */
@@ -374,15 +449,17 @@ function handleSetThreshold(Context $ctx, $db, $botUsername, $threshold = 5)
 {
 
     $message = $ctx->getMessage();
-    if (!$message) return;
+    if (!$message)
+        return;
 
     $text = $message->getText();
-    if (!$text) return;
+    if (!$text)
+        return;
 
     print_r($text);
     // Match both '/set_threshold' and '/set_threshold@<bot_username>'
     if (preg_match("/^\/set_threshold(@$botUsername)? (\d+)/", $text, $matches)) {
-        if (!$matches[2]){
+        if (!$matches[2]) {
             return;
         }
         $threshold = $matches[2];
@@ -393,7 +470,8 @@ function handleSetThreshold(Context $ctx, $db, $botUsername, $threshold = 5)
     $userId = $ctx->getEffectiveUser()->getId();
 
     // Fetch chat administrators
-    $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $threshold) {
+    $lang = getLang($db, $chatId);
+    $ctx->getChatAdministrators($chatId)->then(function ($admins) use ($ctx, $db, $chatId, $userId, $threshold, $lang) {
         $isAdmin = false;
 
         // Check if the user is an admin
@@ -413,14 +491,14 @@ function handleSetThreshold(Context $ctx, $db, $botUsername, $threshold = 5)
                 $stmt->execute([$chatId, $threshold, $threshold]);
 
                 // Respond with confirmation message
-                $ctx->sendMessage("Spam threshold has been set to $threshold.");
+                $ctx->sendMessage(__('threshold_set', $lang, $threshold));
             } else {
                 // If the threshold is not a valid number, show usage instructions
-                $ctx->sendMessage("Usage: /set_threshold [number]");
+                $ctx->sendMessage(__('usage_threshold', $lang));
             }
         } else {
             // If the user is not an admin, send a permission error message
-            $ctx->sendMessage("You must be an admin to set the spam threshold.");
+            $ctx->sendMessage(__('admin_only', $lang));
         }
     });
 }
@@ -437,10 +515,12 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
     $stmt->execute([$messageId, $chatId, $tgId]);
     $hasVoted = $stmt->fetchColumn();
 
+    $lang = getLang($db, $chatId);
+
     if ($hasVoted > 0) {
         // Send the message as a callback query alert
         $ctx->answerCallbackQuery([
-            'text' => "You have already voted on this message.",
+            'text' => __('already_voted', $lang),
             'show_alert' => true
         ]);
         return;
@@ -495,7 +575,7 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             $votersMentionsString = implode(', ', $votersMentions);
 
             // Edit the bot's message with a thank you note to voters and remove the buttons
-            $ctx->editMessageText("The message was counted as spam and has been deleted. Thanks to voters: $votersMentionsString.", [
+            $ctx->editMessageText(__('spam_deleted', $lang, $votersMentionsString), [
                 'chat_id' => $botChatId,
                 'message_id' => $botMessageId,
                 'parse_mode' => 'HTML'
@@ -526,7 +606,7 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
 //            ]);
         } else {
             // Edit the bot's message with the vote count and keep the buttons
-            $ctx->editMessageText("Do you think it is spam?\n\n👍 - $thumbsUp votes\n👎 - $thumbsDown votes", [
+            $ctx->editMessageText(__('vote_status', $lang, $thumbsUp, $thumbsDown), [
                 'chat_id' => $botChatId,
                 'message_id' => $botMessageId,
                 'reply_markup' => json_encode([
@@ -540,7 +620,7 @@ function incrementVote($db, $messageId, $chatId, $column, $ctx, $botMessageId, $
             ]);
         }
     } else {
-        $ctx->sendMessage("Error: Could not fetch vote data.");
+        $ctx->sendMessage(__('error_vote_data', $lang));
     }
 }
 
@@ -559,6 +639,7 @@ function updateUserPoints($db, $userId, $ctx, $chatId)
 
     if ($userData) {
         $points = $userData['points'];
+        $lang = getLang($db, $chatId);
         $badges = [
             10 => 'Rookie Hunter',
             100 => 'Slayer',
@@ -568,7 +649,7 @@ function updateUserPoints($db, $userId, $ctx, $chatId)
 
         foreach ($badges as $threshold => $badge) {
             if ($points == $threshold) {
-                $ctx->sendMessage("Kudos to <a href=\"tg://user?id=$userId\">this user</a> for reaching the level of $badge!", [
+                $ctx->sendMessage(__('user_badge_reach', $lang, $userId, $badge), [
                     'chat_id' => $chatId,
                     'parse_mode' => 'HTML'
                 ]);
@@ -578,7 +659,7 @@ function updateUserPoints($db, $userId, $ctx, $chatId)
             }
         }
     } else {
-        $ctx->sendMessage("Error: Could not fetch user points.");
+        $ctx->sendMessage(__('error_user_points', getLang($db, $chatId)));
     }
 }
 

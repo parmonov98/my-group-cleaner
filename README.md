@@ -10,7 +10,7 @@ install nodemon globally
 1. git clone repo
 2. composer install
 3. nano .env and TG_BOT_TOKEN="YOUR_TOKEN"
-4. nodemon start.php    
+4. nodemon bot.php
 ```
 
 By default, it works in long-polling mode!
